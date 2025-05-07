@@ -22,7 +22,7 @@ class DisplayInfor extends React.Component {
               this.handleShowHide();
             }}
           >
-            {this.state.isShowListUser === true
+             {this.state.isShowListUser === true
               ? "Hide List User"
               : "Show List User"}
           </span>
