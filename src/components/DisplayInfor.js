@@ -1,6 +1,5 @@
 import React from "react";
 import "./DisplayInfor.scss";
-import logo from "./../logo.svg";
 
 class DisplayInfor extends React.Component {
   state = {
@@ -18,7 +17,6 @@ class DisplayInfor extends React.Component {
     //props => properties
     return (
       <div className="display-infor-container">
-        <img src={logo} alt="logo" />
         <div>
           <span
             onClick={() => {
@@ -38,10 +36,17 @@ class DisplayInfor extends React.Component {
                   key={user.id}
                   className={+user.age > 18 ? "green" : "pink"}
                 >
-                  <div style={{ color: "yellow", paddingTop: "50px" }}>
+                  <div style={{ color: "red", paddingTop: "50px" }}>
                     My name is: {user.name}{" "}
                   </div>
                   <div>My age is: {user.age}</div>
+                  <div>
+                    <button
+                      onClick={() => this.props.handleDeleteUser(user.id)}
+                    >
+                      Delete
+                    </button>
+                  </div>
                   <hr />
                 </div>
               );
