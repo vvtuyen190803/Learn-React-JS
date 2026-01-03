@@ -1,120 +1,148 @@
 import pandas as pd
 import numpy as np
-from sklearn.model_selection import KFold
-from sklearn.preprocessing import StandardScaler
-from sklearn.neighbors import KNeighborsClassifier
+
+from sklearn.preprocessing import MinMaxScaler, StandardScaler, LabelEncoder
+from sklearn.model_selection import train_test_split, KFold
 from sklearn.naive_bayes import GaussianNB
-from sklearn.svm import SVC
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
-import time
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.metrics import accuracy_score, precision_score, recall_score
+
 import matplotlib.pyplot as plt
 
-# Dữ liệu
-data = pd.DataFrame({
-    'F1': [9.8, 1.3, 12.3, 1.6, 5.8, 6.8, 41.5, 2.8, 1.9, 6.8, 2.2, 7.7],
-    'F2': [1.52, 4.61, 4.42, 3.8, 1.3, 3.62, 1.6, 3.82, 2.6, 4.22, 2.9, 1.4],
-    'F3': [3.71, 3.12, 2.81, 2.9, 3.5, 2.3, 2.5, 2.5, 2.9, 2.9, 4.1, 2.5],
-    'F4': [18.1, 2.2, 3, 2.2, 3.9, 40.7, 4.1, 3.9, 2.6, 3.9, 2.3, 3.1],
-    'F5': [12.1, 2.9, 2.5, 2.7, 1.3, 2.3, 1.2, 3.9, 2.1, 1.8, 5.2, 1.5],
-    'F6': [6.1, 9.1, 10, 11, 5.2, 5.8, 9.6, 9.7, 1.7, 2.4, 5.4, 7.3],
-    'F7': [41.2, 5.8, 31.2, 7, 3.3, 21.7, 2.7, 2.7, 2.6, 4, 3.9, 4.3],
-    'Class': ['H', 'L', 'H', 'H', 'L', 'H', 'L', 'L', 'H', 'L', 'H', 'L']
-})
+# Đọc file dữ liệu (đặt cpu.csv cùng thư mục notebook)
+df = pd.read_csv("cpu.csv")
 
-X = data.drop('Class', axis=1)
-y = data['Class']
+df.head()
 
-# Chuẩn hóa dữ liệu
-scaler = StandardScaler()
-X_scaled = scaler.fit_transform(X)
+#Câu a chuẩn hóa dữ liệu
 
-# K-fold cross-validation
-kf = KFold(n_splits=3, shuffle=True, random_state=42)
+# Chuẩn hoá MYCT, MMIN về [0, 10]
+scaler_minmax = MinMaxScaler(feature_range=(0, 10))
+df[['MYCT', 'MMIN']] = scaler_minmax.fit_transform(df[['MYCT', 'MMIN']])
 
-# Hàm đánh giá mô hình
-def evaluate_model(model, X, y, kf):
-    results = []
-    for train_index, test_index in kf.split(X):
-        X_train, X_test = X[train_index], X[test_index]
-        y_train, y_test = y[train_index], y[test_index]
+# Standardize các cột còn lại (trừ class)
+scaler_std = StandardScaler()
+cols_std = ['MMAX', 'CACH', 'CHMIN', 'CHMAX']
+df[cols_std] = scaler_std.fit_transform(df[cols_std])
 
-        start_time = time.time()
-        model.fit(X_train, y_train)
-        end_time = time.time()
+# Mã hoá cột class
+le = LabelEncoder()
+df['class'] = le.fit_transform(df['class'])
 
-        y_pred = model.predict(X_test)
+df.head()
 
-        accuracy = accuracy_score(y_test, y_pred)
-        precision = precision_score(y_test, y_pred, pos_label='H', zero_division=1) # Xử lý zero_division
-        recall = recall_score(y_test, y_pred, pos_label='H', zero_division=1) # Xử lý zero_division
-        f1 = f1_score(y_test, y_pred, pos_label='H', zero_division=1) # Xử lý zero_division
-        time_taken = end_time - start_time
+#Câu b Fourier Transform
 
-        results.append([accuracy, precision, recall, f1, time_taken])
-    return np.array(results)
+from numpy.fft import fft, ifft
 
-# Khởi tạo và đánh giá các mô hình
-knn = KNeighborsClassifier(n_neighbors=3)
-knn_results = evaluate_model(knn, X_scaled, y, kf)
+data_10 = df.iloc[:10, :-1].values  # bỏ cột class
+fft_data = fft(data_10, axis=0)
+ifft_data = ifft(fft_data, axis=0)
+print("Dữ liệu ban đầu:\n", data_10)
+print("Sau FFT:\n", fft_data)
+print("Sau IFFT (lấy phần thực):\n", np.real(ifft_data))
 
-bayes = GaussianNB()
-bayes_results = evaluate_model(bayes, X_scaled, y, kf)
+#Câu c Chia tập dữ liệu
 
-svm = SVC()
-svm_results = evaluate_model(svm, X_scaled, y, kf)
+X = df.drop('class', axis=1)
+y = df['class']
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.1, random_state=42, stratify=y
+)
+print("Số mẫu Train:", X_train.shape)
+print("Số mẫu Test:", X_test.shape)
+
+#câu d 5-Fold Cross Validation trên tập train
+
+kf = KFold(n_splits=5, shuffle=True, random_state=42)
+
+for i, (train_idx, val_idx) in enumerate(kf.split(X_train)):
+    print(f"Fold {i+1}: Train = {len(train_idx)}, Validation = {len(val_idx)}")
 
 
-# In kết quả
-models = {'KNN': knn_results, 'Bayes': bayes_results, 'SVM': svm_results}
-metrics = ['Accuracy', 'Precision', 'Recall', 'F1-score', 'Time']
+#Câu 2
 
-for name, result in models.items():
-    print(f"\n{name} Results (Averaged over 3 folds):")
-    for i, metric in enumerate(metrics):
-        print(f"{metric}: {result[:, i].mean():.4f}")
+#Câu a Naive Bayes – Đếm đúng/sa
 
-    print(f"\n{name} Results (Per Fold):")
-    for i, fold_result in enumerate(result):
-        print(f"Fold {i+1}:")
-        for j, metric in enumerate(metrics):
-            print(f"  {metric}: {fold_result[j]:.4f}")
+nb = GaussianNB()
+correct_nb = 0
+wrong_nb = 0
 
-# So sánh mô hình
-print("\nComparison (Per Fold):")
-for i in range(3):
-    print(f"\nFold {i+1}:")
-    for name, result in models.items():
-        print(f"  {name}:")
-        for j, metric in enumerate(metrics):
-             print(f"    {metric}: {result[i, j]:.4f}")
+for train_idx, val_idx in kf.split(X_train):
+    X_tr = X_train.iloc[train_idx]
+    X_val = X_train.iloc[val_idx]
+    y_tr = y_train.iloc[train_idx]
+    y_val = y_train.iloc[val_idx]
 
+    nb.fit(X_tr, y_tr)
+    y_pred = nb.predict(X_val)
 
-# Vẽ biểu đồ
-for name, result in models.items():
-    for i, metric in enumerate(metrics[:-1]):  # Loại bỏ 'Time' khỏi biểu đồ so sánh
-        plt.figure()
-        plt.bar(range(3), result[:, i])
-        plt.title(f"{name} {metric} per Fold")
-        plt.xlabel("Fold")
-        plt.ylabel(metric)
-        plt.xticks(range(3), [f"Fold {j+1}" for j in range(3)])
-        plt.show()
+    correct_nb += np.sum(y_pred == y_val)
+    wrong_nb += np.sum(y_pred != y_val)
 
+print("Naive Bayes")
+print("Số mẫu phân lớp đúng:", correct_nb)
+print("Số mẫu phân lớp sai:", wrong_nb)
 
+#Câu b KNN – Đếm đúng/sai
 
-for i in range(3):
-    plt.figure()
-    width = 0.2  # Giảm độ rộng cột để hiển thị 3 mô hình
-    x = np.arange(len(metrics[:-1]))
+knn = KNeighborsClassifier(n_neighbors=5)
+correct_knn = 0
+wrong_knn = 0
 
-    plt.bar(x - width, bayes_results[i, :-1], width, label='Bayes')
-    plt.bar(x , knn_results[i, :-1], width, label='KNN')
-    plt.bar(x + width, svm_results[i, :-1], width, label='SVM')
+for train_idx, val_idx in kf.split(X_train):
+    X_tr = X_train.iloc[train_idx]
+    X_val = X_train.iloc[val_idx]
+    y_tr = y_train.iloc[train_idx]
+    y_val = y_train.iloc[val_idx]
 
+    knn.fit(X_tr, y_tr)
+    y_pred = knn.predict(X_val)
 
-    plt.title(f'Model Comparison - Fold {i+1}')
-    plt.ylabel('Value')
-    plt.xticks(x, metrics[:-1])
-    plt.legend()
-    plt.tight_layout()
-    plt.show()
+    correct_knn += np.sum(y_pred == y_val)
+    wrong_knn += np.sum(y_pred != y_val)
+
+print("KNN")
+print("Số mẫu phân lớp đúng:", correct_knn)
+print("Số mẫu phân lớp sai:", wrong_knn)
+
+#Câu c Accuracy – Precision – Recall từng fold
+
+accs = []
+pres = []
+recs = []
+
+for train_idx, val_idx in kf.split(X_train):
+    X_tr = X_train.iloc[train_idx]
+    X_val = X_train.iloc[val_idx]
+    y_tr = y_train.iloc[train_idx]
+    y_val = y_train.iloc[val_idx]
+
+    knn.fit(X_tr, y_tr)
+    y_pred = knn.predict(X_val)
+
+    accs.append(accuracy_score(y_val, y_pred))
+    pres.append(precision_score(y_val, y_pred, average='macro'))
+    recs.append(recall_score(y_val, y_pred, average='macro'))
+
+print("Accuracy từng fold:", accs)
+print("Precision từng fold:", pres)
+print("Recall từng fold:", recs)
+
+print("\nGiá trị trung bình:")
+print("Accuracy:", np.mean(accs))
+print("Precision:", np.mean(pres))
+print("Recall:", np.mean(recs))
+
+#Vẽ biểu đồ hiện thị kết quả 
+plt.figure()
+plt.plot(accs, marker='o', label='Accuracy')
+plt.plot(pres, marker='s', label='Precision')
+plt.plot(recs, marker='^', label='Recall')
+
+plt.xlabel("Fold")
+plt.ylabel("Score")
+plt.title("Kết quả 5-Fold Cross Validation (KNN)")
+plt.legend()
+plt.grid(True)
+plt.show()
